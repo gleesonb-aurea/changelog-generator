@@ -1,28 +1,26 @@
-#Assumes github_api_key is set in the environment variables 
-
 import requests
 import pandas as pd
 import time
-from tqdm import tqdm
-from datetime import datetime, timedelta
 import os
+import streamlit as st
 
 def github_api_call(url_suffix, owner, repo, params = {}):
-
-    # Set the bearer token
-    token = os.getenv('github_api_key',None)
+    token = os.getenv('github_api_key')
     if token is None:
-        raise ValueError("Please set the 'github_api_key' environment variable")
+        token = st.text_input("Enter your GitHub token:", type="password")
+        if not token:
+            st.error("GitHub token is required")
+            st.stop()
+        os.environ['github_api_key'] = token
 
-    # Set the headers for the API request
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json"
     }
 
     url = f'https://api.github.com/repos/{owner}/{repo}/{url_suffix}'
-    print(url)
-    time.sleep(1)  # Add a sleep of 1 second
+    st.text(f"Calling: {url}")
+    time.sleep(1)  
     response = requests.get(url, params=params, headers=headers)
     return response
 

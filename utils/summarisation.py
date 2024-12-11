@@ -1,93 +1,71 @@
-#Assumes OPENAI_API_KEY is set in the environment variables
-
-import openai
+import os
+from openai import OpenAI
+import streamlit as st
 
 def extract_messages_from_commits(pr_commit_data):
-    unique_pr_titles = pr_commit_data['PR Title'].unique()
-    overall_text = ""
-    for pr_title in unique_pr_titles:
-        text = f"Commits for PR: {pr_title}"
-        commits = pr_commit_data[pr_commit_data['PR Title'] == pr_title]
-        for index, row in commits.iterrows():
-            if row['Commit Message'].startswith("Merge branch"):
-                continue
-            text += f"\n- {row['Commit Message']}"
-        overall_text = overall_text + text + "\n"
-    print(overall_text)
-    return overall_text
-
+    """Groups commit messages by PR and formats them for the changelog"""
+    
+    commits_by_pr = {}
+    for _, row in pr_commit_data.iterrows():
+        pr_title = row['PR Title']
+        commit_msg = row['Commit Message']
+        pr_number = row['PR Number']
+        
+        if commit_msg.startswith("Merge branch"):
+            continue
+            
+        if pr_title not in commits_by_pr:
+            commits_by_pr[pr_title] = {
+                'number': pr_number,
+                'commits': []
+            }
+        commits_by_pr[pr_title]['commits'].append(commit_msg)
+    
+    overall_text = []
+    for pr_title, data in commits_by_pr.items():
+        pr_text = [f"PR #{data['number']}: {pr_title}"]
+        pr_text.extend([f"- {msg}" for msg in data['commits']])
+        overall_text.append("\n".join(pr_text))
+        
+    return "\n\n".join(overall_text)
 
 def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_description, main_branch='main'):
+    """Generates a changelog using GPT-4"""
+    
+    system_prompt = """Create a changelog from git commits following these rules:
+    1. Group changes into sections: Added, Changed, Deprecated, Removed, Fixed, Security
+    2. Keep entries clear and concise
+    3. Include PR numbers as links [#123]
+    4. Focus on user-facing changes
+    5. Use active voice
+    6. Start each entry with a verb (Added, Fixed, etc.)"""
 
-    system_prompt = """# Docs Changelog Guidelines
+    user_prompt = f"""Generate a changelog for {owner}/{repo} ({repo_description}) 
+    Time period: {start_date} to {end_date}
+    Branch: {main_branch}
 
-    ## How to make a good changelog? 
+    Commit messages:
+    {commits}"""
 
-    1. Changelogs are for **humans**, not machines.
-    2. There should be an entry for **every version**.
-    3. The same types of changes **are be grouped**. [See sections](#sections).
-    4. The latest version comes first, the release dates are displayed.
-
-    ## Sections
-
-    |  Section     | Section purpose                   |
-    | ------------ | --------------------------------- |
-    | `Added`      | new features                      |
-    | `Changed`    | changes in existing functionality |
-    | `Deprecated` | soon-to-be removed features       |
-    | `Removed`    | now removed features              |
-    | `Fixed`      | any bug fixes                     |
-    | `Security`   | in case of security issues        |
-    | `Unreleased` | to note down upcoming changes     |
-
-    ## Template
-
-    ```
-    ### Unreleased
-    - New method `fetchPotatoes()` fetching potatoes; details at [the project page](#)
-
-    ### Added
-    - New method `returnWeirdFace()` returning a random avatar URL for a anonymous customer
-    - New object `weirdFaces` used in `returnWeirdFace()` method
-
-    ### Changed
-    - Renamed `textualCorrespondence` to `chat` as it seems more readable
-
-    ### Removed
-    - Section about "changelog" vs "CHANGELOG".
-
-    ### Fixed
-    - Fix Markdown links to tag comparison URL with footnote-style links.
-
-    ...
-    ```"""
-    prompt = [
-        {
-            "type": "text",
-            "text": f"""
-            I am sharing the text of all commits that were merged into {main_branch} of {owner}/{repo} between {start_date} and {end_date}. 
-            {commits}
-            
-            Use this information to create a changelog in the format suggested in the System Prompt. For the changelog's context, the description of the repo is: {repo_description}. 
-
-            Keep the entire output in a code block, ending with:
-            Made with [Changelog Generator](changelog-generator.streamlit.io)
-            """
-        }
-    ]
-
-    from openai import OpenAI
-    client = OpenAI()
-
-    response = client.chat.completions.create(
-        model="gpt-4-turbo",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    print(response.choices[0])
-    summary = response.choices[0].message.content
-    print(summary)
-    return summary
+    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+        
+        changelog = response.choices[0].message.content
+        
+        # Add footer
+        changelog += f"\n\nMade with [Changelog Generator](changelog-generator.streamlit.io)"
+        
+        return changelog
+        
+    except Exception as e:
+        st.error(f"Error generating changelog: {str(e)}")
+        return None

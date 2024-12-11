@@ -1,71 +1,77 @@
 import streamlit as st
 import re
+from datetime import datetime
 from utils.github_data_fetch import fetch_prs_merged_between_dates, fetch_commits_from_prs
 from utils.summarisation import gpt_inference_changelog, extract_messages_from_commits
-from htbuilder import HtmlElement, div, ul, li, br, hr, a, p, img, styles, classes, fonts
-from htbuilder.units import percent, px
 
 st.title('Changelog Auto-Generator')
-st.markdown("This app generates a changelog based on the commits in a repository. [See code on Github](https://github.com/DrDroidLab/changelog-generator)")
+st.markdown("This app generates a changelog based on merged Pull Requests.")
 
 def validate_github_url(url):
     pattern = r'^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$'
     match = re.match(pattern, url)
     if match:
-        owner = match.group(1)
-        repository_name = match.group(2)
-        return owner, repository_name
-    else:
-        return None, None
+        return match.group(1), match.group(2)
+    return None, None
 
-repository = st.text_input('Repository URL', 'https://github.com/DrDroidLab/playbooks')
+# Input fields
+repository = st.text_input('Repository URL', 'https://github.com/trilogy-group/cloudfix-aws')
 owner, repo = validate_github_url(repository)
-if owner is None or repo is None:
-    st.error('Invalid repository URL. Switching to default repository.')
-    owner, repo = 'DrDroidLab', 'playbooks'
+if not owner or not repo:
+    st.error('Invalid repository URL')
+    st.stop()
 
-start_date, end_date = st.columns(2)
-start_date = start_date.date_input('Start Date')
-end_date = end_date.date_input('End Date')
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input('Start Date')
+with col2:
+    end_date = st.date_input('End Date')
 
-only_main_prs = st.checkbox('Only Include PRs merged into main branch', value=True)
-if (st.checkbox('Change main branch name', value=False)):
-    main_branch = st.text_input('Main branch name', 'main')
-else:
-    main_branch = 'main'
+main_branch = 'production'
+if st.checkbox('Change main branch name'):
+    main_branch = st.text_input('Main branch name', main_branch)
 
-st.text("Review the details and click the button below to generate the changelog.")
-st.markdown(f"Repository: {owner}/{repo}")
-st.markdown(f"Date Range: {start_date} to {end_date}")
-st.markdown(f"Main Branch: {main_branch}")
+st.markdown("---")
+st.markdown(f"**Repository**: {owner}/{repo}")
+st.markdown(f"**Date Range**: {start_date} to {end_date}")
+st.markdown(f"**Main Branch**: {main_branch}")
 
-if 'clicked' not in st.session_state:
-    st.session_state.clicked = False
-
-def click_button():
-    st.session_state.clicked = True
-
-st.button('Generate Changelog', key='generate_button', on_click=click_button)
-
-if(st.session_state.clicked):
-    st.session_state.clicked = False
-    st.text("Fetching PRs...")
-    prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, main_branch)
-    if prs is None or prs.shape[0] == 0:
-        st.error("No PRs found in the given date range")
-        st.stop()
-    st.text(f"Fetched {prs.shape[0]} PRs")
-    st.text("Fetching commits...")
-    commits = fetch_commits_from_prs(prs, owner, repo)
-    st.text(f"Fetched {commits.shape[0]} commits")
-    st.text("Extracting commit messages...")
-    prompt_body = extract_messages_from_commits(commits)
-    st.text("Commit messages extracted")
-    st.text("Generating changelog...")
-    changelog = gpt_inference_changelog(prompt_body, start_date, end_date,owner, repo, repo_description, main_branch)
-    st.text("Changelog generated")
-    st.markdown(changelog)
-    # st.button('Generate Changelog', key='generate_button', on_click='enable')
+if st.button('Generate Changelog'):
+    with st.spinner('Fetching PRs...'):
+        prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, main_branch)
+        
+        if prs is None:
+            st.error("Failed to fetch PRs")
+            st.stop()
+        
+        if prs.empty:
+            st.warning("No PRs found in the given date range")
+            st.stop()
+        
+        st.success(f"Found {len(prs)} PRs")
+        
+        with st.spinner('Fetching commits...'):
+            commits = fetch_commits_from_prs(prs, owner, repo)
+            st.success(f"Found {len(commits)} commits")
+        
+        with st.spinner('Generating changelog...'):
+            messages = extract_messages_from_commits(commits)
+            changelog = gpt_inference_changelog(
+                messages, 
+                start_date, 
+                end_date,
+                owner, 
+                repo, 
+                repo_description, 
+                main_branch
+            )
+            
+            st.markdown("## Generated Changelog")
+            st.markdown(changelog)
+            
+            # Display raw PR data in an expander
+            with st.expander("View Raw PR Data"):
+                st.dataframe(prs[['title', 'number', 'merged_at']])
 
 
 def image(src_as_string, **style):
@@ -124,16 +130,5 @@ def layout(*args):
 
     st.markdown(str(foot), unsafe_allow_html=True)
 
-
-def footer():
-    my_args = [
-        "Made with ❤️ by ",
-        br(),
-        link("https://drdroid.io", image(
-            'https://assets-global.website-files.com/642ad9ebc00f9544d49b1a6b/652262b9496b7b6fa1843f19_Frame%2013910.png')),
-    ]
-    layout(*my_args)
-
-
 if __name__ == "__main__":
-    footer()
+    pass
