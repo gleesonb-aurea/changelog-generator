@@ -51,7 +51,7 @@ def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_des
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -60,9 +60,6 @@ def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_des
         )
         
         changelog = response.choices[0].message.content
-        
-        # Add footer
-        changelog += f"\n\nMade with [Changelog Generator](changelog-generator.streamlit.io)"
         
         return changelog
         

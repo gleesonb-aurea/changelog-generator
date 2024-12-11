@@ -1,8 +1,14 @@
 import streamlit as st
 import re
 from datetime import datetime
-from utils.github_data_fetch import fetch_prs_merged_between_dates, fetch_commits_from_prs
-from utils.summarisation import gpt_inference_changelog, extract_messages_from_commits
+from utils.github_data_fetch import (
+    fetch_prs_merged_between_dates, 
+    fetch_commits_from_prs,
+)
+from utils.summarisation import (
+    gpt_inference_changelog, 
+    extract_messages_from_commits,
+)
 
 st.title('Changelog Auto-Generator')
 st.markdown("This app generates a changelog based on merged Pull Requests.")
@@ -37,8 +43,9 @@ st.markdown(f"**Date Range**: {start_date} to {end_date}")
 st.markdown(f"**Main Branch**: {main_branch}")
 
 if st.button('Generate Changelog'):
-    with st.spinner('Fetching PRs...'):
-        prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, main_branch)
+        with st.spinner('Fetching PRs...'):
+            prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, main_branch)
+            # ... rest of your code ...
         
         if prs is None:
             st.error("Failed to fetch PRs")
