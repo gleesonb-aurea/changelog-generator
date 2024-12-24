@@ -1,5 +1,6 @@
 import streamlit as st
 import re
+import pandas as pd
 from datetime import datetime
 from utils.github_data_fetch import (
     fetch_prs_merged_between_dates, 
@@ -33,33 +34,45 @@ with col1:
 with col2:
     end_date = st.date_input('End Date')
 
-main_branch = 'production'
-if st.checkbox('Change main branch name. Default is production. Other changes may be in staging or qa.'):
-    main_branch = st.text_input('Main branch name', main_branch)
+available_branches = ['production', 'staging', 'qa']
+selected_branches = st.multiselect(
+    'Select branches to scan (default: production)',
+    available_branches,
+    default=['production']
+)
+
+if not selected_branches:
+    st.error('Please select at least one branch')
+    st.stop()
 
 st.markdown("---")
 st.markdown(f"**Repository**: {owner}/{repo}")
 st.markdown(f"**Date Range**: {start_date} to {end_date}")
-st.markdown(f"**Main Branch**: {main_branch}")
+st.markdown(f"**Selected Branches**: {', '.join(selected_branches)}")
 
 if st.button('Generate Changelog'):
-        with st.spinner('Fetching PRs...'):
-            prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, main_branch)
-            # ... rest of your code ...
+    all_prs = []
+    repo_description = None
+    
+    with st.spinner('Fetching PRs...'):
+        for branch in selected_branches:
+            branch_prs, repo_description = fetch_prs_merged_between_dates(owner, repo, start_date, end_date, branch)
+            if branch_prs is not None and not branch_prs.empty:
+                # Add branch information to the PRs
+                branch_prs['branch'] = branch
+                all_prs.append(branch_prs)
         
-        if prs is None:
-            st.error("Failed to fetch PRs")
+        if not all_prs:
+            st.error("Failed to fetch PRs or no PRs found")
             st.stop()
-        
-        if prs.empty:
-            st.warning("No PRs found in the given date range")
-            st.stop()
-        
-        st.success(f"Found {len(prs)} PRs")
-        
-        with st.spinner('Fetching commits...'):
-            commits = fetch_commits_from_prs(prs, owner, repo)
-            st.success(f"Found {len(commits)} commits")
+            
+        # Combine all PRs into a single DataFrame
+        prs = pd.concat(all_prs, ignore_index=True)
+        st.success(f"Found {len(prs)} PRs across {len(selected_branches)} branches")
+    
+    with st.spinner('Fetching commits...'):
+        commits = fetch_commits_from_prs(prs, owner, repo)
+        st.success(f"Found {len(commits)} commits")
         
         with st.spinner('Generating changelog...'):
             messages = extract_messages_from_commits(commits)
@@ -70,7 +83,7 @@ if st.button('Generate Changelog'):
                 owner, 
                 repo, 
                 repo_description, 
-                main_branch
+                selected_branches
             )
             
             st.markdown("## Generated Changelog")
@@ -78,7 +91,7 @@ if st.button('Generate Changelog'):
             
             # Display raw PR data in an expander
             with st.expander("View Raw PR Data"):
-                st.dataframe(prs[['title', 'number', 'merged_at']])
+                st.dataframe(prs[['title', 'number', 'merged_at', 'branch']])
 
 
 def image(src_as_string, **style):

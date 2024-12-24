@@ -36,7 +36,7 @@ def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_des
     1. Group changes into sections: Added, Changed, Deprecated, Removed, Fixed, Security
     2. Keep entries clear and concise
     3. Include PR numbers as links [#123]
-    4. Focus on user-facing changes
+    4. Focus on user-facing changes. This summary will be made available to external end-users and customers
     5. Use active voice
     6. Start each entry with a verb (Added, Fixed, etc.)"""
 
