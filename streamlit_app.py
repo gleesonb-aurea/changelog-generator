@@ -34,7 +34,7 @@ with col2:
     end_date = st.date_input('End Date')
 
 main_branch = 'production'
-if st.checkbox('Change main branch name'):
+if st.checkbox('Change main branch name. Default is production. Other changes may be in staging or qa.'):
     main_branch = st.text_input('Main branch name', main_branch)
 
 st.markdown("---")
@@ -138,4 +138,4 @@ def layout(*args):
     st.markdown(str(foot), unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    pass
+    pass 
