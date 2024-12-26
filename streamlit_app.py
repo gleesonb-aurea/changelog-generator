@@ -12,7 +12,7 @@ from utils.summarisation import (
 )
 
 st.title('Changelog Auto-Generator')
-st.markdown("This app generates a changelog based on merged Pull Requests.")
+st.markdown("This app generates a CloudFix changelog based on merged Pull Requests.")
 
 def validate_github_url(url):
     pattern = r'^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$'
