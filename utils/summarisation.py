@@ -30,7 +30,7 @@ def extract_messages_from_commits(pr_commit_data):
     return "\n\n".join(overall_text)
 
 def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_description, main_branch='main'):
-    """Generates a changelog using GPT-4"""
+    """Generates a changelog using GPT-4o"""
     
     system_prompt = """Create a changelog from git commits following these rules:
     1. Group changes into sections: Added, Changed, Deprecated, Removed, Fixed, Security
