@@ -22,6 +22,7 @@ from utils.performance import (
     benchmark_current_setup
 )
 from config.exceptions import GitHubAPIError, OpenAIAPIError, ValidationError
+from config.settings import get_secure_github_token, request_github_token_from_user
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -68,6 +69,16 @@ owner, repo = validate_github_url(repository)
 if not owner or not repo:
     st.error('Invalid repository URL')
     st.stop()
+
+# Validate GitHub token early - outside of any cached functions
+github_token = get_secure_github_token()
+if not github_token:
+    st.warning("GitHub token not found in secrets or environment variables.")
+    github_token = request_github_token_from_user()
+    if not github_token:
+        st.error("GitHub token is required to fetch repository data.")
+        st.info("Please add your GitHub token to Streamlit secrets or environment variables for automatic authentication.")
+        st.stop()
 
 col1, col2 = st.columns(2)
 with col1:

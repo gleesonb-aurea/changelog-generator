@@ -95,8 +95,8 @@ def github_api_call(
     token = get_secure_github_token()
     
     if not token:
-        st.error("GitHub token is required")
-        st.stop()
+        # This should not happen if token validation is done at UI level
+        raise GitHubAPIError("GitHub token is not available")
 
     headers = {
         "Authorization": f"Bearer {token}",

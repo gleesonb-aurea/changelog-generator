@@ -68,15 +68,21 @@ def validate_github_token(token: str) -> bool:
 
 
 def get_secure_github_token() -> Optional[str]:
-    """Securely handle GitHub token input with validation."""
+    """Securely handle GitHub token retrieval from secrets/environment."""
     config = AppConfig()
     
-    # Try to get from configuration first
+    # Get from configuration (secrets or environment)
     token = config.github_token
     if token and validate_github_token(token):
         return token
     
-    # Fallback to UI input
+    # If no valid token found, show error but don't use widgets here
+    # (widgets should only be used in the main app flow, not in cached functions)
+    return None
+
+
+def request_github_token_from_user() -> Optional[str]:
+    """Request GitHub token from user via UI - separate from cached functions."""
     token = st.text_input(
         "Enter your GitHub token:",
         type="password",
