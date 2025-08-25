@@ -1,6 +1,6 @@
 """Configuration settings for the changelog generator."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 import os
 import re
@@ -30,8 +30,8 @@ class OpenAIConfig:
 @dataclass
 class AppConfig:
     """Main application configuration."""
-    github: GitHubConfig = GitHubConfig()
-    openai: OpenAIConfig = OpenAIConfig()
+    github: GitHubConfig = field(default_factory=GitHubConfig)
+    openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     
     @property
     def github_token(self) -> Optional[str]:
