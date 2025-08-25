@@ -1,0 +1,663 @@
+{
+  "name": "CloudFix Monthly Changelog Distribution",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "scheduler",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "",
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.CHANGELOG_API_URL }}/changelog/last-month",
+        "options": {
+          "timeout": 300,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          }
+        }
+      },
+      "id": "generate_changelog",
+      "name": "Generate Changelog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success_check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check_success",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "email_subject",
+              "name": "email_subject",
+              "value": "🚀 CloudFix Updates - {{ DateTime.now().toFormat('MMMM yyyy') }}",
+              "type": "string"
+            },
+            {
+              "id": "email_html",
+              "name": "email_html",
+              "value": "={{ $json.html_content }}",
+              "type": "string"
+            },
+            {
+              "id": "email_text",
+              "name": "email_text",
+              "value": "={{ $json.plain_text }}",
+              "type": "string"
+            },
+            {
+              "id": "changelog_summary",
+              "name": "changelog_summary",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "metadata",
+              "name": "metadata",
+              "value": "={{ $json.metadata }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare_email_data",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "get_subscribers",
+      "name": "Get CloudFix Subscribers",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtable_credentials",
+          "name": "CloudFix Subscribers DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "id": "batch_emails",
+      "name": "Batch Email Processing",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.CLOUDFIX_FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $('Prepare Email Data').item.json.email_subject }}",
+        "emailFormat": "html",
+        "html": "={{ $('Prepare Email Data').item.json.email_html }}",
+        "text": "={{ $('Prepare Email Data').item.json.email_text }}",
+        "options": {
+          "ccEmail": "",
+          "bccEmail": "",
+          "replyTo": "support@cloudfix.com",
+          "appendAttribution": false,
+          "attachments": [],
+          "headers": [
+            {
+              "name": "List-Unsubscribe",
+              "value": "<mailto:unsubscribe@cloudfix.com>, <https://cloudfix.com/unsubscribe>"
+            },
+            {
+              "name": "X-Campaign-Type",
+              "value": "product-updates"
+            }
+          ]
+        }
+      },
+      "id": "send_email_batch",
+      "name": "Send Email Batch",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        200
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp_credentials",
+          "name": "CloudFix SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "batch_count",
+              "name": "batch_count",
+              "value": "={{ $json.batchIndex }}",
+              "type": "number"
+            },
+            {
+              "id": "total_batches",
+              "name": "total_batches",
+              "value": "={{ $json.batchSize }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "track_batch_progress",
+      "name": "Track Batch Progress",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificEvent",
+        "event": "updated",
+        "downloadAttachments": false
+      },
+      "id": "wait_batch_complete",
+      "name": "Wait for Batch Complete",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"✅ CloudFix Monthly Changelog Distributed\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"📧 CloudFix Changelog Distribution Complete\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Period:* {{ $('Prepare Email Data').item.json.metadata.period }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Repository:* {{ $('Prepare Email Data').item.json.metadata.repository }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Subscribers:* {{ $json.total_sent }} emails sent\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Generated:* {{ DateTime.now().toISO() }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Summary:*\\n{{ $('Prepare Email Data').item.json.changelog_summary }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notify_success",
+      "name": "Notify Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DATADOG_API_URL }}/api/v1/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "DD-API-KEY",
+              "value": "={{ $env.DATADOG_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"CloudFix Changelog Distributed\",\n  \"text\": \"Monthly changelog successfully generated and distributed to {{ $json.total_sent }} subscribers\",\n  \"tags\": [\"changelog\", \"automation\", \"success\"],\n  \"alert_type\": \"success\",\n  \"source_type_name\": \"n8n-workflow\"\n}",
+        "options": {}
+      },
+      "id": "log_to_datadog",
+      "name": "Log to Datadog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"❌ CloudFix Changelog Generation Failed\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"🚨 Changelog Automation Error\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Error:* {{ $json.error || 'Unknown error occurred' }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Time:* {{ DateTime.now().toISO() }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Repository:* trilogy-group/cloudfix-aws\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"Please check the n8n workflow logs and fix the issue.\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"View n8n Logs\"\n          },\n          \"url\": \"{{ $env.N8N_WEBHOOK_URL }}/workflows\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notify_error",
+      "name": "Notify Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DATADOG_API_URL }}/api/v1/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "DD-API-KEY",
+              "value": "={{ $env.DATADOG_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"CloudFix Changelog Generation Failed\",\n  \"text\": \"Error: {{ $json.error || 'Unknown error occurred' }}\",\n  \"tags\": [\"changelog\", \"automation\", \"error\"],\n  \"alert_type\": \"error\",\n  \"source_type_name\": \"n8n-workflow\"\n}",
+        "options": {}
+      },
+      "id": "log_error_datadog",
+      "name": "Log Error to Datadog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "resource": "databaseItem",
+        "databaseId": "={{ $env.NOTION_CHANGELOG_DB_ID }}",
+        "title": "CloudFix Changelog {{ DateTime.now().toFormat('MMMM yyyy') }}",
+        "properties": {
+          "properties": [
+            {
+              "key": "Period",
+              "type": "rich_text",
+              "richTextValue": "={{ $('Prepare Email Data').item.json.metadata.period }}"
+            },
+            {
+              "key": "Repository",
+              "type": "rich_text",
+              "richTextValue": "={{ $('Prepare Email Data').item.json.metadata.repository }}"
+            },
+            {
+              "key": "Content",
+              "type": "rich_text",
+              "richTextValue": "={{ $('Generate Changelog').item.json.changelog }}"
+            },
+            {
+              "key": "Email Summary",
+              "type": "rich_text",
+              "richTextValue": "={{ $('Prepare Email Data').item.json.changelog_summary }}"
+            },
+            {
+              "key": "Distribution Date",
+              "type": "date",
+              "dateValue": "{{ DateTime.now().toISODate() }}"
+            },
+            {
+              "key": "Status",
+              "type": "select",
+              "selectValue": "Distributed"
+            }
+          ]
+        }
+      },
+      "id": "archive_changelog",
+      "name": "Archive to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        200
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "notion_credentials",
+          "name": "CloudFix Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "total_sent",
+              "name": "total_sent",
+              "value": "={{ $runIndex * 50 + $itemIndex + 1 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "calculate_totals",
+      "name": "Calculate Totals",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        2000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no_changes_check",
+              "leftValue": "={{ $json.changelog }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check_empty_changelog",
+      "name": "Check Empty Changelog",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"ℹ️ No CloudFix changes this month\",\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"No significant changes were found for CloudFix this month. The changelog generation ran successfully but found no user-facing updates to report.\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notify_no_changes",
+      "name": "Notify No Changes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Monthly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Changelog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Changelog": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Check Empty Changelog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Empty Changelog": {
+      "main": [
+        [
+          {
+            "node": "Get CloudFix Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify No Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get CloudFix Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Batch Email Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Email Processing": {
+      "main": [
+        [
+          {
+            "node": "Send Email Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Batch": {
+      "main": [
+        [
+          {
+            "node": "Track Batch Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Batch Progress": {
+      "main": [
+        [
+          {
+            "node": "Calculate Totals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Totals": {
+      "main": [
+        [
+          {
+            "node": "Notify Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Success": {
+      "main": [
+        [
+          {
+            "node": "Log to Datadog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Datadog": {
+      "main": [
+        [
+          {
+            "node": "Archive to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Error": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Datadog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": {
+      "errorWorkflow": "error_handler_workflow_id"
+    }
+  },
+  "staticData": {},
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "changelog_automation",
+      "name": "Changelog Automation"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

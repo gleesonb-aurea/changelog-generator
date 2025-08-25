@@ -1,0 +1,286 @@
+{
+  "name": "CloudFix Monthly Changelog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 13 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.CHANGELOG_API_URL }}/generate",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 300000
+        },
+        "bodyParametersJson": "{\n  \"owner\": \"trilogy-group\",\n  \"repo\": \"cloudfix-aws\",\n  \"branches\": [\"production\", \"main\"],\n  \"days_back\": 30,\n  \"format\": \"email\"\n}",
+        "headerParametersJson": "{\n  \"Authorization\": \"Bearer {{ $env.API_TOKEN }}\",\n  \"Content-Type\": \"application/json\"\n}"
+      },
+      "id": "generate-changelog",
+      "name": "Generate Changelog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "success-check",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "format-subject",
+              "name": "email_subject",
+              "value": "📅 CloudFix Monthly Updates - {{ DateTime.now().toFormat('MMMM yyyy') }}",
+              "type": "string"
+            },
+            {
+              "id": "format-content",
+              "name": "email_content",
+              "value": "{{ $node[\"Generate Changelog\"].json.changelog }}",
+              "type": "string"
+            },
+            {
+              "id": "format-summary",
+              "name": "summary",
+              "value": "{{ $node[\"Generate Changelog\"].json.summary }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-email",
+      "name": "Format Email Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@cloudfix.com",
+        "toEmail": "={{ $env.CLOUDFIX_USERS_LIST }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>CloudFix Monthly Updates</title>\n    <style>\n        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }\n        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }\n        .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }\n        .changelog { background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea; margin: 20px 0; }\n        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 0.9em; }\n        h1, h2, h3 { margin-top: 0; }\n        ul { padding-left: 20px; }\n        li { margin: 8px 0; }\n        a { color: #667eea; text-decoration: none; }\n        a:hover { text-decoration: underline; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🚀 CloudFix Monthly Updates</h1>\n        <p>{{ DateTime.now().toFormat('MMMM yyyy') }}</p>\n    </div>\n    \n    <div class=\"content\">\n        <h2>What's New This Month</h2>\n        <p>{{ $json.summary }}</p>\n        \n        <div class=\"changelog\">\n            {{ $json.email_content }}\n        </div>\n        \n        <p><strong>Want more details?</strong> Check out our <a href=\"https://github.com/trilogy-group/cloudfix-aws/releases\">full release notes</a> or visit the <a href=\"https://cloudfix.com\">CloudFix dashboard</a>.</p>\n    </div>\n    \n    <div class=\"footer\">\n        <p>You're receiving this because you're a valued CloudFix user.</p>\n        <p><a href=\"{{ $env.UNSUBSCRIBE_URL }}\">Unsubscribe</a> | <a href=\"https://cloudfix.com\">CloudFix.com</a></p>\n    </div>\n</body>\n</html>",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "ccEmail": "",
+          "bccEmail": ""
+        },
+        "credentials": "smtp"
+      },
+      "id": "send-email",
+      "name": "Send Newsletter Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fallback-content",
+              "name": "fallback_email",
+              "value": "<h2>🔧 CloudFix Monthly Updates - {{ DateTime.now().toFormat('MMMM yyyy') }}</h2>\n<p>We've been working hard behind the scenes to improve CloudFix this month!</p>\n<p>While our automated changelog generation encountered an issue, here's what you can expect:</p>\n<ul>\n<li>Continued AWS cost optimization improvements</li>\n<li>Enhanced security and performance updates</li>\n<li>Better user experience across the platform</li>\n</ul>\n<p>For detailed updates, please visit our <a href=\"https://github.com/trilogy-group/cloudfix-aws/releases\">GitHub releases page</a>.</p>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-fallback",
+      "name": "Create Fallback Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@cloudfix.com",
+        "toEmail": "={{ $env.CLOUDFIX_USERS_LIST }}",
+        "subject": "📅 CloudFix Monthly Updates - {{ DateTime.now().toFormat('MMMM yyyy') }}",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>CloudFix Monthly Updates</title>\n    <style>\n        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }\n        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }\n        .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }\n        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 0.9em; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🚀 CloudFix Monthly Updates</h1>\n        <p>{{ DateTime.now().toFormat('MMMM yyyy') }}</p>\n    </div>\n    \n    <div class=\"content\">\n        {{ $json.fallback_email }}\n    </div>\n    \n    <div class=\"footer\">\n        <p>You're receiving this because you're a valued CloudFix user.</p>\n        <p><a href=\"{{ $env.UNSUBSCRIBE_URL }}\">Unsubscribe</a> | <a href=\"https://cloudfix.com\">CloudFix.com</a></p>\n    </div>\n</body>\n</html>",
+        "credentials": "smtp"
+      },
+      "id": "send-fallback-email",
+      "name": "Send Fallback Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@cloudfix.com",
+        "toEmail": "={{ $env.ADMIN_EMAIL }}",
+        "subject": "🚨 CloudFix Newsletter Generation Failed - {{ DateTime.now().toFormat('yyyy-MM-dd') }}",
+        "emailType": "html",
+        "message": "<h2>Newsletter Generation Alert</h2>\n<p><strong>Issue:</strong> The monthly changelog generation failed.</p>\n<p><strong>Time:</strong> {{ DateTime.now().toISO() }}</p>\n<p><strong>Error:</strong> {{ $node[\"Generate Changelog\"].json.error || 'Unknown error' }}</p>\n<p><strong>Action Taken:</strong> Fallback email sent to users.</p>\n<p><strong>Next Steps:</strong></p>\n<ul>\n<li>Check API logs for detailed error information</li>\n<li>Verify GitHub and OpenAI API credentials</li>\n<li>Manual review of recent repository changes</li>\n</ul>",
+        "credentials": "smtp"
+      },
+      "id": "alert-admin",
+      "name": "Alert Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "httpMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"text\": \"✅ CloudFix Newsletter Sent Successfully\",\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*CloudFix Monthly Newsletter* 📧\\n\\n✅ Successfully generated and sent to {{ $env.CLOUDFIX_USERS_LIST.split(',').length }} users\\n\\n*Summary:* {{ $node['Format Email Content'].json.summary }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"View Full Changelog\"\n          },\n          \"url\": \"https://github.com/trilogy-group/cloudfix-aws/releases\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "slack-success",
+      "name": "Slack Success Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "Monthly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Changelog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Changelog": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Format Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Fallback Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email Content": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Newsletter Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Fallback Content": {
+      "main": [
+        [
+          {
+            "node": "Send Fallback Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Fallback Email": {
+      "main": [
+        [
+          {
+            "node": "Alert Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T12:00:00.000Z",
+      "updatedAt": "2024-01-15T12:00:00.000Z",
+      "id": "cloudfix",
+      "name": "CloudFix"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-15T12:00:00.000Z",
+  "versionId": "1"
+}

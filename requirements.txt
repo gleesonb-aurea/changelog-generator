@@ -52,3 +52,16 @@ tqdm==4.66.4
 typing-extensions==4.11.0
 tzdata==2024.1
 urllib3==2.2.1
+aiohttp==3.9.3
+psutil==5.9.8
+
+# Testing dependencies
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-asyncio==0.21.1
+pytest-xdist==3.5.0
+pytest-benchmark==4.0.0
+responses==0.24.1
+freezegun==1.2.2
+factory-boy==3.3.0
