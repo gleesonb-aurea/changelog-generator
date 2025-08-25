@@ -32,13 +32,13 @@ def extract_messages_from_commits(pr_commit_data):
 def gpt_inference_changelog(commits, start_date, end_date, owner, repo, repo_description, main_branch='main'):
     """Generates a changelog using GPT-4o"""
     
-    system_prompt = """Create a changelog from git commits following these rules:
-    1. Group changes into sections: Added, Changed, Deprecated, Removed, Fixed, Security
-    2. Keep entries clear and concise
+    system_prompt = """Create a changelog from git commits for CloudFix (AWS cost optimization platform):
+    1. Group changes into sections with emoji headers: ✨ Added, 🔧 Changed, 🐛 Fixed, 🔒 Security
+    2. Keep entries clear and concise (maximum 2 lines each)
     3. Include PR numbers as links [#123]
-    4. Focus on user-facing changes. This summary will be made available to external end-users and customers
-    5. Use active voice
-    6. Start each entry with a verb (Added, Fixed, etc.)"""
+    4. Focus on user-facing changes for external customers
+    5. Use active voice, start each entry with a verb
+    6. Emphasize AWS cost savings and infrastructure impact where relevant"""
 
     user_prompt = f"""Generate a changelog for {owner}/{repo} ({repo_description}) 
     Time period: {start_date} to {end_date}
